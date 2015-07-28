@@ -9,17 +9,17 @@
 //   Connect the GPS TX (transmit) pin to Arduino RX1, RX2 or RX3
 //   Connect the GPS RX (receive) pin to matching TX1, TX2 or TX3
 
-SoftwareSerial mySerial(3, 2);
+SoftwareSerial mySerial(5, 2);
 Adafruit_GPS GPS(&mySerial);
 
 #define GPSECHO  false // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
 
 uint32_t timer = 0;
-const long unsigned timeToSync=290000; // 4' 50''
+const long unsigned timeToSync=115000; // 290000 - 4' 50''
 
-const int unsigned powerOnPin = 5;
-const int unsigned waitingGPSPin = 7;
-const int unsigned SyncUTCPin = 8;
+const int unsigned powerOnPin = 5; // LED 'on'
+const int unsigned waitingGPSPin = 7; //LED 'waiting'
+const int unsigned SyncUTCPin = 8; // LED showing the sync 
 
 boolean usingInterrupt = false;// this keeps track of whether we're using the interrupt - off by default!
 void useInterrupt(boolean); // Func prototype keeps Arduino 0023 happy
@@ -39,16 +39,70 @@ void setup()
 
   printInitialGPSData();
   
-  
   syncUTC();
-  digitalWrite(SyncUTCPin, HIGH);
+  
+  attachInterrupt(1, initASecond, RISING);
   
   Serial.println("End Setup with GPS Signal and UTC synchronized.");
 }
 
+long secondsOn = 4;
+long secondsOff = 1;
+
+long secondsOnAcum =0;
+long secondsOffAcum =0;
+
+boolean validateOnStatus =true;
+boolean validateOffStatus =false;
+
+void initASecond(){  
+
+  if(validateOnStatus){
+
+      if(secondsOnAcum==0){ // entra por primera vez
+        Serial.println(1, DEC); 
+        digitalWrite(4, HIGH);
+        secondsOnAcum++;
+      }else if(secondsOnAcum<secondsOn){
+        secondsOnAcum++; // entra por 2º, 3º 
+      }else if(secondsOnAcum==secondsOn){
+        validateOnStatus=false;
+        secondsOnAcum =0;
+        validateOffStatus=true;        
+      }
+    
+  }
+
+  if(validateOffStatus){
+
+    if(secondsOffAcum==0){
+        Serial.println(0, DEC); 
+        digitalWrite(4, LOW); 
+        secondsOffAcum++;
+      }else if(secondsOffAcum<secondsOff){
+        secondsOffAcum++;
+      }else if(secondsOffAcum==secondsOff){
+        validateOnStatus=true;
+        validateOffStatus=false;
+        secondsOffAcum =0;
+      }
+    
+  }
+}
+
+/*
+void initASecond(){
+    Serial.println(1, DEC); 
+    digitalWrite(4, HIGH);
+    delay(200); // 4 seconds
+    Serial.println(0, DEC); 
+    digitalWrite(4, LOW);
+    delay(800); // 1 second
+
+}
+*/
 void waitGPSSignal(){
   while(!GPS.fix){
-    digitalWrite(waitingGPSPin, HIGH);
   
     // if a sentence is received, we can check the checksum, parse it...
     if (GPS.newNMEAreceived()) {
@@ -60,31 +114,17 @@ void waitGPSSignal(){
       if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
         return;  // we can fail to parse a sentence in which case we should just wait for another
     }
-    delay(500);
-    digitalWrite(waitingGPSPin, LOW);
-    delay(500);
   }
 }
 
 // Interrupt is called once a millisecond, looks for any new GPS data, and stores it
 SIGNAL(TIMER0_COMPA_vect) {
   char c = GPS.read();
-  // if you want to debug, this is a good time to do it!
-#ifdef UDR0
-  if (GPSECHO)
-    if (c) UDR0 = c;  
-    // writing direct to UDR0 is much much faster than Serial.print 
-    // but only one character can be written at a time. 
-#endif
 }
 
 
 void loop()
 {
-    digitalWrite(4, HIGH);
-    delay(4000); // 4 seconds
-    digitalWrite(4, LOW);
-    delay(1000); // 1 second
 
     if((millis()-timer)>=timeToSync){ 
       syncUTC();
@@ -99,8 +139,6 @@ void syncUTC(){
     boolean exit=false;
     
     while(!exit){ 
-        digitalWrite(SyncUTCPin, HIGH);
-//      Serial.print(GPS.seconds, DEC);Serial.print(" - ");
        if (GPS.newNMEAreceived()) {
         // a tricky thing here is if we print the NMEA sentence, or data
         // we end up not listening and catching other sentences! 
@@ -110,14 +148,11 @@ void syncUTC(){
         if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
           continue;  // we can fail to parse a sentence in which case we should just wait for another
 
-        if(GPS.seconds==0)
+        if(GPS.seconds==0 && GPS.milliseconds==0)
             exit=true;
       }
-      delay(100);
-      digitalWrite(SyncUTCPin, LOW);
-      delay(100);
     }
-    Serial.print("Synchronized. time: ");Serial.print(GPS.hour, DEC); Serial.print(':'); Serial.print(GPS.minute, DEC); Serial.print(':'); Serial.print(GPS.seconds, DEC); Serial.println('.');
+    //Serial.print("Synchronized. time: ");Serial.print(GPS.hour, DEC); Serial.print(':'); Serial.print(GPS.minute, DEC); Serial.print(':'); Serial.print(GPS.seconds, DEC); Serial.println('.');
     timer =millis();
 }
 
@@ -145,9 +180,9 @@ void initGPS(){
   GPS.begin(9600);
   
   // uncomment this line to turn on RMC (recommended minimum) and GGA (fix data) including altitude
-  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+  //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
   // uncomment this line to turn on only the "minimum recommended" data
-  //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
   
   // Set the update rate
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);   // 1 Hz update rate
@@ -165,6 +200,7 @@ void initGPS(){
 }
 
 void useInterrupt(boolean v) {
+  Serial.println("useInterrupt");
   if (v) {
     // Timer0 is already used for millis() - we'll just interrupt somewhere
     // in the middle and call the "Compare A" function above
