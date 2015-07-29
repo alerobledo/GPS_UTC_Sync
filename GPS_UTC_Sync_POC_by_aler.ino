@@ -46,47 +46,45 @@ void setup()
   Serial.println("End Setup with GPS Signal.");
 }
 
-unsigned int secondsOnAcum =0;
-unsigned int secondsOffAcum =0;
+unsigned int secondsAcumHigh =0;
+unsigned int secondsAcumDown =0;
 
-boolean validateOnStatus =true;
-boolean validateOffStatus =false;
+boolean validateStatusHigh =true;
+boolean validateStatusDown =false;
 
-const unsigned int secondsOn = 4;
-const unsigned int secondsOff = 1;
-
-
+const unsigned int timeLapseHigh = 4;
+const unsigned int timeLapseDown = 1;
 
 void sendPulse(){  
 
-  if(validateOnStatus){
+  if(validateStatusHigh){
 
-      if(secondsOnAcum==0){ // entra por primera vez
+      if(secondsAcumHigh==0){ // entra por primera vez
         Serial.println(1, DEC); 
         digitalWrite(4, HIGH);
-        secondsOnAcum++;
-      }else if(secondsOnAcum<secondsOn){
-        secondsOnAcum++; // entra por 2º, 3º 
-      }else if(secondsOnAcum==secondsOn){
-        validateOnStatus=false;
-        secondsOnAcum =0;
-        validateOffStatus=true;        
+        secondsAcumHigh++;
+      }else if(secondsAcumHigh<timeLapseHigh){
+        secondsAcumHigh++; // entra por 2º, 3º 
+      }else{
+        validateStatusHigh=false;
+        secondsAcumHigh =0;
+        validateStatusDown=true;        
       }
     
   }
 
-  if(validateOffStatus){
+  if(validateStatusDown){
 
-    if(secondsOffAcum==0){
+    if(secondsAcumDown==0){
         Serial.println(0, DEC); 
         digitalWrite(4, LOW); 
-        secondsOffAcum++;
-      }else if(secondsOffAcum<secondsOff){
-        secondsOffAcum++;
-      }else if(secondsOffAcum==secondsOff){
-        validateOnStatus=true;
-        validateOffStatus=false;
-        secondsOffAcum =0;
+        secondsAcumDown++;
+      }else if(secondsAcumDown<timeLapseDown){
+        secondsAcumDown++;
+      }else{
+        validateStatusHigh=true;
+        validateStatusDown=false;
+        secondsAcumDown =0;
       }
     
   }
