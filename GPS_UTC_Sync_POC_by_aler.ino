@@ -28,7 +28,7 @@ void setup()
 {
     
   Serial.begin(115200);
-  Serial.println("UTC sync POC (by aler)");
+  Serial.println("UTC sync POC (by aler) v1.0.2");
 
   initGPS();
   digitalWrite(powerOnPin, HIGH);
@@ -41,21 +41,23 @@ void setup()
   
   syncUTC();
   
-  attachInterrupt(1, initASecond, RISING);
+  attachInterrupt(1, sendPulse, RISING);
   
-  Serial.println("End Setup with GPS Signal and UTC synchronized.");
+  Serial.println("End Setup with GPS Signal.");
 }
 
-long secondsOn = 4;
-long secondsOff = 1;
-
-long secondsOnAcum =0;
-long secondsOffAcum =0;
+unsigned int secondsOnAcum =0;
+unsigned int secondsOffAcum =0;
 
 boolean validateOnStatus =true;
 boolean validateOffStatus =false;
 
-void initASecond(){  
+const unsigned int secondsOn = 4;
+const unsigned int secondsOff = 1;
+
+
+
+void sendPulse(){  
 
   if(validateOnStatus){
 
@@ -126,16 +128,16 @@ SIGNAL(TIMER0_COMPA_vect) {
 void loop()
 {
 
-    if((millis()-timer)>=timeToSync){ 
-      syncUTC();
-    }
+   // if((millis()-timer)>=timeToSync){ 
+   //   syncUTC();
+   // }
     
 }
 
 
 
 void syncUTC(){    
-    Serial.println("Synchronizing with second 0 from UTC...");
+    Serial.print("Synchronizing with second 0 from UTC...at:");
     boolean exit=false;
     
     while(!exit){ 
@@ -152,7 +154,7 @@ void syncUTC(){
             exit=true;
       }
     }
-    //Serial.print("Synchronized. time: ");Serial.print(GPS.hour, DEC); Serial.print(':'); Serial.print(GPS.minute, DEC); Serial.print(':'); Serial.print(GPS.seconds, DEC); Serial.println('.');
+    Serial.print("Synchronized. at: ");Serial.print(GPS.seconds, DEC);Serial.print(":");Serial.print(GPS.milliseconds);
     timer =millis();
 }
 

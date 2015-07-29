@@ -6,5 +6,4 @@ import sys
 
 ser = serial.Serial(sys.argv[1], 115200)
 while True:
-	print time.time() 
-	print ser.readline()
+	print 'Value received: ' + repr(ser.readline()) +'   - at time: ' + repr(time.time())
