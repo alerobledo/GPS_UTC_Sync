@@ -50,7 +50,6 @@ unsigned int secondsAcumHigh =0;
 unsigned int secondsAcumDown =0;
 
 boolean validateStatusHigh =true;
-boolean validateStatusDown =false;
 
 const unsigned int timeLapseHigh = 4;
 const unsigned int timeLapseDown = 1;
@@ -58,36 +57,22 @@ const unsigned int timeLapseDown = 1;
 void sendPulse(){  
 
   if(validateStatusHigh){
-
-      if(secondsAcumHigh==0){ // entra por primera vez
+      if(secondsAcumHigh<timeLapseHigh){
         Serial.println(1, DEC); 
         digitalWrite(4, HIGH);
         secondsAcumHigh++;
-      }else if(secondsAcumHigh<timeLapseHigh){
-        secondsAcumHigh++; // entra por 2º, 3º 
       }else{
         validateStatusHigh=false;
         secondsAcumHigh =0;
-        validateStatusDown=true;        
       }
-    
-  }
-
-  if(validateStatusDown){
-
-    if(secondsAcumDown==0){
+  }else if(secondsAcumDown<timeLapseDown){
         Serial.println(0, DEC); 
         digitalWrite(4, LOW); 
         secondsAcumDown++;
-      }else if(secondsAcumDown<timeLapseDown){
-        secondsAcumDown++;
-      }else{
+   }else{
         validateStatusHigh=true;
-        validateStatusDown=false;
         secondsAcumDown =0;
-      }
-    
-  }
+   }
 }
 
 /*
