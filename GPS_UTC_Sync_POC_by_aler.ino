@@ -1,14 +1,6 @@
 #include <Adafruit_GPS.h>
 #include <SoftwareSerial.h>
 
-// Connect the GPS Power pin to 5V
-// Connect the GPS Ground pin to ground
-//   Connect the GPS TX (transmit) pin to Digital 3
-//   Connect the GPS RX (receive) pin to Digital 2
-// If using hardware serial (e.g. Arduino Mega):
-//   Connect the GPS TX (transmit) pin to Arduino RX1, RX2 or RX3
-//   Connect the GPS RX (receive) pin to matching TX1, TX2 or TX3
-
 SoftwareSerial mySerial(5, 2);
 Adafruit_GPS GPS(&mySerial);
 
@@ -42,7 +34,11 @@ void setup()
   syncUTC();
   
   attachInterrupt(1, sendPulse, RISING);
-  
+        /*   Param 1 means the interrupts will check the PIN 3 (in Arduino UNO)
+             RISING means interrupt will be thrown when PIN value change from LOW to HIGH.
+             PIN 3 will be connected to PPS (GPS PIN module).
+             It means interrupt wil be thrown at every second start.
+        */
   Serial.println("End Setup with GPS Signal.");
 }
 
