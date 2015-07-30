@@ -107,34 +107,29 @@ SIGNAL(TIMER0_COMPA_vect) {
 void loop()
 {
 
-   // if((millis()-timer)>=timeToSync){ 
-   //   syncUTC();
-   // }
+    if((millis()-timer)>=timeToSync){ 
+      syncUTC();
+    }
     
 }
 
 
 
-void syncUTC(){    
+void syncUTC(){
+    noInterrupts();
     Serial.print("Synchronizing with second 0 from UTC...at:");
-    boolean exit=false;
-    
-    while(!exit){ 
-       if (GPS.newNMEAreceived()) {
-        // a tricky thing here is if we print the NMEA sentence, or data
-        // we end up not listening and catching other sentences! 
-        // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
-        //Serial.println(GPS.lastNMEA());   // this also sets the newNMEAreceived() flag to false
-      
-        if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
-          continue;  // we can fail to parse a sentence in which case we should just wait for another
 
-        if(GPS.seconds==0 && GPS.milliseconds==0)
-            exit=true;
+    while(true){ 
+       if (GPS.newNMEAreceived() 
+            && GPS.parse(GPS.lastNMEA()
+            && GPS.seconds==0 
+            && GPS.milliseconds==0){
+            break;
       }
     }
-    Serial.print("Synchronized. at: ");Serial.print(GPS.seconds, DEC);Serial.print(":");Serial.print(GPS.milliseconds);
     timer =millis();
+    Serial.print("Synchronized with second 0 from UTC.");
+    interrupts();
 }
 
 
