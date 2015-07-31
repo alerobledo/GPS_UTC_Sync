@@ -9,7 +9,7 @@ Adafruit_GPS GPS(&mySerial);
 uint32_t timer = 0;
 const long unsigned timeToSync=115000; // 290000 - 4' 50''
 
-const int unsigned powerOnPin = 5; // LED 'on'
+//const int unsigned powerOnPin = 5; // LED 'on'
 const int unsigned waitingGPSPin = 7; //LED 'waiting'
 const int unsigned SyncUTCPin = 8; // LED showing the sync 
 
@@ -20,10 +20,10 @@ void setup()
 {
     
   Serial.begin(115200);
-  Serial.println("UTC sync POC (by aler) v1.0.2");
+  Serial.println("UTC sync POC (by aler) v1.0.3");
 
   initGPS();
-  digitalWrite(powerOnPin, HIGH);
+  //digitalWrite(powerOnPin, HIGH);
   
   Serial.println("Waiting for GPS signal, pleas wait...");
   waitGPSSignal();  
@@ -50,29 +50,35 @@ boolean validateStatusHigh =true;
 const unsigned int timeLapseHigh = 4;
 const unsigned int timeLapseDown = 1;
 
+
 void sendPulse(){  
 
   if(validateStatusHigh){
       if(secondsAcumHigh<timeLapseHigh){
-        Serial.println(1, DEC); 
         digitalWrite(4, HIGH);
+        Serial.println(1, DEC); 
         secondsAcumHigh++;
       }else{
+        digitalWrite(4, LOW);
+        Serial.println(0, DEC);
         validateStatusHigh=false;
         secondsAcumHigh =0;
+        secondsAcumDown++;
       }
   }else if(secondsAcumDown<timeLapseDown){
         Serial.println(0, DEC); 
-        digitalWrite(4, LOW); 
         secondsAcumDown++;
    }else{
-        validateStatusHigh=true;
+        digitalWrite(4, HIGH);
+        Serial.println(1, DEC); 
+        secondsAcumHigh++;        
         secondsAcumDown =0;
+        validateStatusHigh=true;
    }
 }
 
 /*
-void initASecond(){
+void sendPulse(){
     Serial.println(1, DEC); 
     digitalWrite(4, HIGH);
     delay(200); // 4 seconds
@@ -107,29 +113,24 @@ SIGNAL(TIMER0_COMPA_vect) {
 void loop()
 {
 
-    if((millis()-timer)>=timeToSync){ 
-      syncUTC();
-    }
+   // if((millis()-timer)>=timeToSync){ 
+   //   syncUTC();
+   // }
     
 }
 
 
 
 void syncUTC(){
-    noInterrupts();
-    Serial.print("Synchronizing with second 0 from UTC...at:");
+  //  Serial.println("Synchronizing with second 0 from UTC...at:");
 
     while(true){ 
-       if (GPS.newNMEAreceived() 
-            && GPS.parse(GPS.lastNMEA()
-            && GPS.seconds==0 
-            && GPS.milliseconds==0){
+       if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds==59) //at next second (00) the interrput will start 
             break;
-      }
     }
-    timer =millis();
-    Serial.print("Synchronized with second 0 from UTC.");
-    interrupts();
+    
+    //timer =millis();
+    Serial.println("Synchronized with second 0 from UTC.  second: ");Serial.print(GPS.seconds);
 }
 
 
@@ -156,9 +157,9 @@ void initGPS(){
   GPS.begin(9600);
   
   // uncomment this line to turn on RMC (recommended minimum) and GGA (fix data) including altitude
-  //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
+  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCGGA);
   // uncomment this line to turn on only the "minimum recommended" data
-  GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
+  //GPS.sendCommand(PMTK_SET_NMEA_OUTPUT_RMCONLY);
   
   // Set the update rate
   GPS.sendCommand(PMTK_SET_NMEA_UPDATE_1HZ);   // 1 Hz update rate
