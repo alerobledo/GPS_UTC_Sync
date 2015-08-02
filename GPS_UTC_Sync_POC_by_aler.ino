@@ -7,7 +7,7 @@ Adafruit_GPS GPS(&mySerial);
 #define GPSECHO  false // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
 
 uint32_t timer = 0;
-const long unsigned timeToSync=115000; // 290000 - 4' 50''
+const long unsigned timeToSync=290000; // 290000 - 4' 50''
 
 //const int unsigned powerOnPin = 5; // LED 'on'
 const int unsigned waitingGPSPin = 7; //LED 'waiting'
@@ -20,7 +20,7 @@ void setup()
 {
     
   Serial.begin(115200);
-  Serial.println("UTC sync POC (by aler) v1.0.3");
+  Serial.println("UTC sync POC (by aler) v1.0.4");
 
   initGPS();
   //digitalWrite(powerOnPin, HIGH);
@@ -33,7 +33,7 @@ void setup()
   
   syncUTC();
   
-  attachInterrupt(1, sendPulse, RISING);
+  //attachInterrupt(1, sendPulse, RISING);
         /*   Param 1 means the interrupts will check the PIN 3 (in Arduino UNO)
              RISING means interrupt will be thrown when PIN value change from LOW to HIGH.
              PIN 3 will be connected to PPS (GPS PIN module).
@@ -42,17 +42,16 @@ void setup()
   Serial.println("End Setup with GPS Signal.");
 }
 
-unsigned int secondsAcumHigh =0;
-unsigned int secondsAcumDown =0;
+volatile unsigned int secondsAcumHigh =0;
+volatile unsigned int secondsAcumDown =0;
 
-boolean validateStatusHigh =true;
+volatile boolean validateStatusHigh =true;
 
 const unsigned int timeLapseHigh = 4;
 const unsigned int timeLapseDown = 1;
 
-
-void sendPulse(){  
-
+void sendPulse(){
+    
   if(validateStatusHigh){
       if(secondsAcumHigh<timeLapseHigh){
         digitalWrite(4, HIGH);
@@ -113,24 +112,30 @@ SIGNAL(TIMER0_COMPA_vect) {
 void loop()
 {
 
-   // if((millis()-timer)>=timeToSync){ 
-   //   syncUTC();
-   // }
+    if((millis()-timer)>=timeToSync){ 
+      syncUTC();
+    }
     
 }
 
 
 
 void syncUTC(){
-  //  Serial.println("Synchronizing with second 0 from UTC...at:");
+    detachInterrupt(1); 
+    digitalWrite(4, LOW); 
+    Serial.println("Synchronizing with second 0 from UTC...");
 
     while(true){ 
-       if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds==59) //at next second (00) the interrput will start 
+       if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds==00) 
             break;
     }
     
-    //timer =millis();
+    timer =millis();
     Serial.println("Synchronized with second 0 from UTC.  second: ");Serial.print(GPS.seconds);
+    secondsAcumHigh =0;
+    secondsAcumDown =0;
+    validateStatusHigh =true;    
+    attachInterrupt(1, sendPulse, RISING);
 }
 
 
@@ -177,7 +182,6 @@ void initGPS(){
 }
 
 void useInterrupt(boolean v) {
-  Serial.println("useInterrupt");
   if (v) {
     // Timer0 is already used for millis() - we'll just interrupt somewhere
     // in the middle and call the "Compare A" function above
