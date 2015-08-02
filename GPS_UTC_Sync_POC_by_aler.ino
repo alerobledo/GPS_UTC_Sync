@@ -8,6 +8,7 @@ Adafruit_GPS GPS(&mySerial);
 
 uint32_t timer = 0;
 const long unsigned timeToSync=290000; // 290000 - 4' 50''
+const boolean pulseGreaterThanSecond = false;
 
 //const int unsigned powerOnPin = 5; // LED 'on'
 const int unsigned waitingGPSPin = 7; //LED 'waiting'
@@ -21,7 +22,7 @@ void setup()
     
   Serial.begin(115200);
   Serial.println("UTC sync POC (by aler) v1.0.4");
-
+ 
   initGPS();
   //digitalWrite(powerOnPin, HIGH);
   
@@ -32,13 +33,18 @@ void setup()
   printInitialGPSData();
   
   syncUTC();
+
+  if(pulseGreaterThanSecond){
+    attachInterrupt(1, sendPulseGreaterThanSecond, RISING);
+          /*   Param 1 means the interrupts will check the PIN 3 (in Arduino UNO)
+               RISING means interrupt will be thrown when PIN value change from LOW to HIGH.
+               PIN 3 will be connected to PPS (GPS PIN module).
+               It means interrupt wil be thrown at every second start.
+          */
+  }else{
+    attachInterrupt(1, sendPulseLessThanSecond, RISING);
+  }
   
-  //attachInterrupt(1, sendPulse, RISING);
-        /*   Param 1 means the interrupts will check the PIN 3 (in Arduino UNO)
-             RISING means interrupt will be thrown when PIN value change from LOW to HIGH.
-             PIN 3 will be connected to PPS (GPS PIN module).
-             It means interrupt wil be thrown at every second start.
-        */
   Serial.println("End Setup with GPS Signal.");
 }
 
@@ -50,7 +56,7 @@ volatile boolean validateStatusHigh =true;
 const unsigned int timeLapseHigh = 4;
 const unsigned int timeLapseDown = 1;
 
-void sendPulse(){
+void sendPulseGreaterThanSecond(){
     
   if(validateStatusHigh){
       if(secondsAcumHigh<timeLapseHigh){
@@ -76,8 +82,8 @@ void sendPulse(){
    }
 }
 
-/*
-void sendPulse(){
+
+void sendPulseLessThanSecond(){
     Serial.println(1, DEC); 
     digitalWrite(4, HIGH);
     delay(200); // 4 seconds
@@ -86,16 +92,12 @@ void sendPulse(){
     delay(800); // 1 second
 
 }
-*/
+
 void waitGPSSignal(){
   while(!GPS.fix){
   
     // if a sentence is received, we can check the checksum, parse it...
     if (GPS.newNMEAreceived()) {
-      // a tricky thing here is if we print the NMEA sentence, or data
-      // we end up not listening and catching other sentences! 
-      // so be very wary if using OUTPUT_ALLDATA and trytng to print out data
-      //Serial.println(GPS.lastNMEA());   // this also sets the newNMEAreceived() flag to false
     
       if (!GPS.parse(GPS.lastNMEA()))   // this also sets the newNMEAreceived() flag to false
         return;  // we can fail to parse a sentence in which case we should just wait for another
@@ -112,8 +114,14 @@ SIGNAL(TIMER0_COMPA_vect) {
 void loop()
 {
 
-    if((millis()-timer)>=timeToSync){ 
+    if(pulseGreaterThanSecond && (millis()-timer)>=timeToSync){ 
+      detachInterrupt(1); 
+      digitalWrite(4, LOW); 
       syncUTC();
+      secondsAcumHigh =0;
+      secondsAcumDown =0;
+      validateStatusHigh =true;    
+      attachInterrupt(1, sendPulseGreaterThanSecond, RISING);
     }
     
 }
@@ -121,8 +129,7 @@ void loop()
 
 
 void syncUTC(){
-    detachInterrupt(1); 
-    digitalWrite(4, LOW); 
+    
     Serial.println("Synchronizing with second 0 from UTC...");
 
     while(true){ 
@@ -132,10 +139,7 @@ void syncUTC(){
     
     timer =millis();
     Serial.println("Synchronized with second 0 from UTC.  second: ");Serial.print(GPS.seconds);
-    secondsAcumHigh =0;
-    secondsAcumDown =0;
-    validateStatusHigh =true;    
-    attachInterrupt(1, sendPulse, RISING);
+
 }
 
 
