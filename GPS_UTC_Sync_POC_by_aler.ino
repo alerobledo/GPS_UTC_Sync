@@ -1,3 +1,5 @@
+// http://www.engblaze.com/microcontroller-tutorial-avr-and-arduino-timer-interrupts/
+
 #include <Adafruit_GPS.h>
 #include <SoftwareSerial.h>
 
@@ -8,7 +10,7 @@ Adafruit_GPS GPS(&mySerial);
 
 uint32_t timer = 0;
 const long unsigned timeToSync=290000; // 290000 - 4' 50''
-const boolean pulseGreaterThanSecond = false;
+const boolean pulseGreaterThanSecond = true;
 
 //const int unsigned powerOnPin = 5; // LED 'on'
 const int unsigned waitingGPSPin = 7; //LED 'waiting'
@@ -21,7 +23,7 @@ void setup()
 {
     
   Serial.begin(115200);
-  Serial.println("UTC sync POC (by aler) v1.0.4");
+  Serial.println("UTC sync POC (by aler) v1.1.0");
  
   initGPS();
   //digitalWrite(powerOnPin, HIGH);
@@ -35,7 +37,7 @@ void setup()
   syncUTC();
 
   if(pulseGreaterThanSecond){
-    attachInterrupt(1, sendPulseGreaterThanSecond, RISING);
+    //attachInterrupt(1, sendPulseGreaterThanSecond, RISING);
           /*   Param 1 means the interrupts will check the PIN 3 (in Arduino UNO)
                RISING means interrupt will be thrown when PIN value change from LOW to HIGH.
                PIN 3 will be connected to PPS (GPS PIN module).
@@ -51,34 +53,32 @@ void setup()
 volatile unsigned int secondsAcumHigh =0;
 volatile unsigned int secondsAcumDown =0;
 
-volatile boolean validateStatusHigh =true;
+volatile int statusToValidate =HIGH;
 
 const unsigned int timeLapseHigh = 4;
 const unsigned int timeLapseDown = 1;
 
-void sendPulseGreaterThanSecond(){
-    
-  if(validateStatusHigh){
+ISR(TIMER1_COMPA_vect){
+
+  Serial.println(digitalRead(4), DEC); 
+
+  if(statusToValidate==HIGH){
       if(secondsAcumHigh<timeLapseHigh){
         digitalWrite(4, HIGH);
-        Serial.println(1, DEC); 
-        secondsAcumHigh++;
+        ++secondsAcumHigh;
       }else{
         digitalWrite(4, LOW);
-        Serial.println(0, DEC);
-        validateStatusHigh=false;
+        statusToValidate=LOW;
         secondsAcumHigh =0;
-        secondsAcumDown++;
+        ++secondsAcumDown;
       }
   }else if(secondsAcumDown<timeLapseDown){
-        Serial.println(0, DEC); 
-        secondsAcumDown++;
+        ++secondsAcumDown;
    }else{
         digitalWrite(4, HIGH);
-        Serial.println(1, DEC); 
-        secondsAcumHigh++;        
+        ++secondsAcumHigh;
         secondsAcumDown =0;
-        validateStatusHigh=true;
+        statusToValidate=HIGH;
    }
 }
 
@@ -113,16 +113,6 @@ SIGNAL(TIMER0_COMPA_vect) {
 
 void loop()
 {
-
-    if(pulseGreaterThanSecond && (millis()-timer)>=timeToSync){ 
-      detachInterrupt(1); 
-      digitalWrite(4, LOW); 
-      syncUTC();
-      secondsAcumHigh =0;
-      secondsAcumDown =0;
-      validateStatusHigh =true;    
-      attachInterrupt(1, sendPulseGreaterThanSecond, RISING);
-    }
     
 }
 
@@ -133,12 +123,29 @@ void syncUTC(){
     Serial.println("Synchronizing with second 0 from UTC...");
 
     while(true){ 
-       if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds==00) 
+       if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds==0 && GPS.milliseconds==0) 
             break;
     }
+
+
+    // initialize Timer1
+    cli();          // disable global interrupts
+    TCCR1A = 0;     // set entire TCCR1A register to 0
+    TCCR1B = 0;     // same for TCCR1B
+ 
+    // set compare match register to desired timer count:
+    OCR1A = 15624;
+    // turn on CTC mode:
+    TCCR1B |= (1 << WGM12);
+    // Set CS10 and CS12 bits for 1024 prescaler:
+    TCCR1B |= (1 << CS10);
+    TCCR1B |= (1 << CS12);
+    // enable timer compare interrupt:
+    TIMSK1 |= (1 << OCIE1A);
+    sei();          // enable global interrupts
+
     
-    timer =millis();
-    Serial.println("Synchronized with second 0 from UTC.  second: ");Serial.print(GPS.seconds);
+    Serial.println("Synchronized with second 0 from UTC.");
 
 }
 
