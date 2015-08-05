@@ -58,10 +58,7 @@ const unsigned int timeLapseDown = 1;
 
 void sendPulseGreaterThanSecond(){
 
-  Serial.print(digitalRead(4));Serial.print(" - ");
-  Serial.print(" GPS.fix: ");Serial.print(GPS.fix);
-  Serial.print(" GPS.latitude: ");Serial.println(GPS.latitude, 4);
-  
+  Serial.println(digitalRead(4))
   
   if(validateStatusHigh){
       if(secondsAcumHigh<timeLapseHigh){
