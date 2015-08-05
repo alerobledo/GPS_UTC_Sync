@@ -7,8 +7,8 @@ Adafruit_GPS GPS(&mySerial);
 #define GPSECHO  false // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
 
 uint32_t timer = 0;
-const long unsigned timeToSync=290000; // 290000 - 4' 50''
-const boolean pulseGreaterThanSecond = false;
+const long unsigned timeToSync=295000; // 290000 - 4' 55''
+const boolean pulseGreaterThanSecond = true;
 
 //const int unsigned powerOnPin = 5; // LED 'on'
 const int unsigned waitingGPSPin = 7; //LED 'waiting'
@@ -57,25 +57,26 @@ const unsigned int timeLapseHigh = 4;
 const unsigned int timeLapseDown = 1;
 
 void sendPulseGreaterThanSecond(){
-    
+
+  Serial.print(digitalRead(4));Serial.print(" - ");
+  Serial.print(" GPS.fix: ");Serial.print(GPS.fix);
+  Serial.print(" GPS.latitude: ");Serial.println(GPS.latitude, 4);
+  
+  
   if(validateStatusHigh){
       if(secondsAcumHigh<timeLapseHigh){
         digitalWrite(4, HIGH);
-        Serial.println(1, DEC); 
         secondsAcumHigh++;
       }else{
         digitalWrite(4, LOW);
-        Serial.println(0, DEC);
         validateStatusHigh=false;
         secondsAcumHigh =0;
         secondsAcumDown++;
       }
   }else if(secondsAcumDown<timeLapseDown){
-        Serial.println(0, DEC); 
         secondsAcumDown++;
    }else{
         digitalWrite(4, HIGH);
-        Serial.println(1, DEC); 
         secondsAcumHigh++;        
         secondsAcumDown =0;
         validateStatusHigh=true;
@@ -133,12 +134,12 @@ void syncUTC(){
     Serial.println("Synchronizing with second 0 from UTC...");
 
     while(true){ 
-       if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds==00) 
+       if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds==0 && GPS.milliseconds==0) 
             break;
     }
     
     timer =millis();
-    Serial.println("Synchronized with second 0 from UTC.  second: ");Serial.print(GPS.seconds);
+    Serial.println("Synchronized with second 0 from UTC.  second: ");
 
 }
 
