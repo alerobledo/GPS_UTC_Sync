@@ -1,22 +1,38 @@
 #include <Adafruit_GPS.h>
 #include <SoftwareSerial.h>
 #include <Time.h>
-
+#include <avr/wdt.h>
 SoftwareSerial mySerial(5, 2);
 Adafruit_GPS GPS(&mySerial);
 
 #define GPSECHO  false // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
+
 #define PIN_CYCLE 4
 
 #define CYCLING_MODE  1
 #define STAND_BY_MODE 2
 
-uint8_t currentMode;
+#define INPUT_SIZE 30
 
-uint32_t timer = 0;
-const long unsigned timeToSync = 295000; // 290000 - 4' 55''
+// *** Configurable params ***
+long unsigned syncFreqMillis = 295000; // 290000 - 4' 55''
+
+int standByStartHour = 19;
+int standByStartMinute = 0;
+int standByEndHour = 7;
+int standByEndMinute = 0;
+
+int unsigned timeLapseHigh = 4;
+int unsigned timeLapseDown = 1;
+
+uint16_t UTCoffset = -3; // Diff with UTC
+
+// *** Program variables ***
+uint8_t currentMode;
+uint32_t lastTimeSync = 0;
 const boolean pulseGreaterThanSecond = true;
 
+// *** Program constants ***
 //const int unsigned powerOnPin = 5; // LED 'on'
 const int unsigned waitingGPSPin = 7; //LED 'waiting'
 const int unsigned SyncUTCPin = 8; // LED showing the sync
@@ -24,26 +40,17 @@ const int unsigned SyncUTCPin = 8; // LED showing the sync
 const uint8_t SATURDAY = 7;
 const uint8_t SUNDAY = 1;
 
-int standByStartHour = 19;
-int standByStartMinute = 0;
-int standByEndHour = 7;
-int standByEndMinute = 0;
-
-uint16_t UTCoffset = -3; // Diff with UTC
-
 uint8_t volatile secondsAcumHigh = 0;
 uint8_t volatile secondsAcumDown = 0;
 boolean volatile validateStatusHigh = true;
 
-const uint8_t timeLapseHigh = 4;
-const uint8_t timeLapseDown = 1;
 
 
 void setup()
 {
 
   Serial.begin(115200);
-  Serial.println("UTC sync POC (by aler) v1.0.4");
+  Serial.println("UTC sync POC (by aler) v1.1.0");
 
   initGPS();
   //digitalWrite(powerOnPin, HIGH);
@@ -52,7 +59,7 @@ void setup()
   waitGPSSignal();
   digitalWrite(waitingGPSPin, HIGH);
 
-  printInitialGPSData();
+  //printInitialGPSData();
 
   syncUTC();
 
@@ -64,21 +71,56 @@ void setup()
 }
 
 
-
 void loop()
 {
   checkStatus();
 
   if ( currentMode == CYCLING_MODE &&
         pulseGreaterThanSecond && 
-        (millis() - timer) >= timeToSync) 
+        (millis() - lastTimeSync) >= syncFreqMillis) 
       {
       detachInterrupt(1);
       digitalWrite(PIN_CYCLE, LOW);
       syncUTC();
-      setInterrupt();
+      setCycleInterrupt();
   }
 
+  readComandRequest();
+  
+}
+
+void readComandRequest(){
+  if(Serial.available() > 0)
+    {
+      char input[INPUT_SIZE + 1];
+      byte size = Serial.readBytes(input, INPUT_SIZE);
+      input[size] = 0;
+      char* command = strtok(input, " ");
+         
+      String commandToExecute;
+      commandToExecute = command; 
+  
+      char* params[2];
+      command = strtok(NULL, " ");
+      if(command!=NULL){
+          params[0] = command;
+          command = strtok(NULL, " ");
+          if(command!=NULL){
+            params[1] = command;
+          }
+       }     
+       
+       if(params[0]!=NULL){
+        Serial.print("param 1:");Serial.println(params[0]);
+       }     
+       if(params[1]!=NULL){
+        Serial.print("param 2:");Serial.println(params[1]);
+       }
+      
+       if(commandToExecute=="RESET"){
+          wdt_enable(WDTO_15MS);
+       }
+  }  
 }
 
 void sendPulseGreaterThanSecond() {
@@ -116,7 +158,7 @@ void sendPulseLessThanSecond() {
 
 }
 
-void  setInterrupt() {
+void  setCycleInterrupt() {
   secondsAcumHigh = 0;
   secondsAcumDown = 0;
   validateStatusHigh = true;
@@ -137,7 +179,8 @@ void checkStatus() {
   if ( (currentMode == CYCLING_MODE) &&
       ( weekday() == SATURDAY || 
         weekday() == SUNDAY ||
-        (hour() == standByStartHour && minute() == standByStartMinute)
+        (hour() >= standByStartHour) ||
+        (hour() < standByEndHour)
       )
      ) { // change to stand by mode, leave PIN as HIGH
       detachInterrupt(1);
@@ -147,10 +190,10 @@ void checkStatus() {
   }
   else if (
     (weekday() != SATURDAY && weekday() != SUNDAY) &&
-    hour() == standByEndHour && minute() == standByEndMinute) { // Wake up from stand by
+    hour() >= standByEndHour) { // Wake up from stand by
       digitalWrite(PIN_CYCLE, LOW);
       currentMode = CYCLING_MODE;
-      setInterrupt();
+      setCycleInterrupt();
   }
 }
 
@@ -164,9 +207,8 @@ void syncUTC() {
     GPS.read();
   }
 
-  timer = millis();
+  lastTimeSync = millis();
   Serial.println("Synchronized successfully.");
-
 }
 
 
