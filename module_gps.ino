@@ -29,7 +29,6 @@ SIGNAL(TIMER0_COMPA_vect) {
 }
 
 void useInterrupt(boolean v) {
-  Serial.println("useInterrupt enter");
   if (v) {
     // Timer0 is already used for millis() - we'll just interrupt somewhere
     // in the middle and call the "Compare A" function above

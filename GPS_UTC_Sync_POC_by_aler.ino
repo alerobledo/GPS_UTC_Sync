@@ -17,12 +17,20 @@ Adafruit_GPS GPS(&mySerial);
 #define INPUT_SIZE 30
 
 // *** Configurable params ***
-long unsigned syncFreqMillis;
+struct ConfigValues {
+  char initValuesConfigured;
+  int UTCoffset;
+  int unsigned timeLapseHigh;
+  int unsigned timeLapseDown;
 
-int standByStartHour, standByStartMinute, standByEndHour, standByEndMinute;
-int unsigned timeLapseHigh, timeLapseDown;
+  long unsigned syncFreqMillis;
 
-uint16_t UTCoffset;
+  int unsigned standByStartHour;
+  int unsigned standByStartMinute;
+  int unsigned standByEndHour;
+  int unsigned standByEndMinute;
+};
+ConfigValues configValues;
 
 // *** Program variables ***
 uint8_t currentMode = CYCLING_MODE;
@@ -53,7 +61,7 @@ void setup()
   Serial.println("UTC sync POC (by aler) v1.1.0");
 
   loadInitialValues();
-  
+
   initGPS();
   //digitalWrite(powerOnPin, HIGH);
 
@@ -65,80 +73,39 @@ void setup()
 
   setInitialTime();
 
+  setCycleInterrupt();
   Serial.println("End Setup.");
 }
 
 
 void loop()
 {
-  if(checkStatusEnabled)
-      checkStatus();
+  if (checkStatusEnabled)
+    checkStatus();
 
   // TODO: modify it in order to use a time interrupt
   if ( currentMode == CYCLING_MODE &&
-        pulseGreaterThanSecond && 
-        (millis() - lastTimeSync) >= syncFreqMillis) 
-      {
-      detachInterrupt(1);
-      digitalWrite(PIN_CYCLE, LOW);
-      syncUTC();
-      setCycleInterrupt();
+       pulseGreaterThanSecond &&
+       (millis() - lastTimeSync) >= configValues.syncFreqMillis)
+  {
+    detachInterrupt(1);
+    digitalWrite(PIN_CYCLE, LOW);
+    syncUTC();
+    setCycleInterrupt();
   }
 
   readComandRequest();
-  
+
 }
 
-void readComandRequest(){
-  if(Serial.available() > 0)
-    {
-      char input[INPUT_SIZE + 1];
-      byte size = Serial.readBytes(input, INPUT_SIZE); // read input
-      input[size] = 0;
-      char* command = strtok(input, " "); // split input
-         
-      String commandToExecute;
-      commandToExecute = command; 
-  
-      char* params[2];// store params if exists, up to 2 params
-      command = strtok(NULL, " ");
-      if(command!=NULL){
-          params[0] = command;
-          command = strtok(NULL, " ");
-          if(command!=NULL){
-            params[1] = command;
-          }
-       }     
-       
-       if(params[0]!=NULL){
-        Serial.print("param 1:");Serial.println(params[0]);
-       }     
-       if(params[1]!=NULL){
-        Serial.print("param 2:");Serial.println(params[1]);
-       }
 
-       if(commandToExecute=="RESET"){
-          reset();
-       }
-       if(commandToExecute=="START-CYCLE"){
-          checkStatusEnabled = false; // in order to not to change to "stand by" mode
-          currentMode = CYCLING_MODE;
-          syncUTC();
-          setCycleInterrupt(); 
-       }
-  }  
-}
-
-void reset(){
-  wdt_enable(WDTO_15MS);
-}
 
 void sendPulseGreaterThanSecond() {
 
   Serial.println(digitalRead(PIN_CYCLE), DEC);
 
   if (validateStatusHigh) {
-    if (secondsAcumHigh < timeLapseHigh) {
+    if (secondsAcumHigh < configValues.timeLapseHigh) {
       digitalWrite(PIN_CYCLE, HIGH);
       secondsAcumHigh++;
     } else {
@@ -147,7 +114,7 @@ void sendPulseGreaterThanSecond() {
       secondsAcumHigh = 0;
       secondsAcumDown++;
     }
-  } else if (secondsAcumDown < timeLapseDown) {
+  } else if (secondsAcumDown < configValues.timeLapseDown) {
     secondsAcumDown++;
   } else {
     digitalWrite(PIN_CYCLE, HIGH);
@@ -188,50 +155,73 @@ void  setCycleInterrupt() {
 /* TODO: modify it in order to use interrupts with timer */
 void checkStatus() {
   if ( (currentMode == CYCLING_MODE) &&
-      ( weekday() == SATURDAY || 
-        weekday() == SUNDAY ||
-        (hour() >= standByStartHour) ||
-        (hour() < standByEndHour)
-      )
+       !isInCycleTimeRange()
      ) { // change to stand by mode, leave PIN as HIGH
-      detachInterrupt(1);
-      digitalWrite(PIN_CYCLE, HIGH);
-      currentMode = STAND_BY_MODE;
-      Serial.println("STAND BY mode...");
+    detachInterrupt(1);
+    digitalWrite(PIN_CYCLE, HIGH);
+    currentMode = STAND_BY_MODE;
+    Serial.println("STAND BY mode...");
   }
   else if (
-    (weekday() != SATURDAY && weekday() != SUNDAY) &&
-    hour() >= standByEndHour) { // Wake up from stand by
-      reset();
+    (currentMode == STAND_BY_MODE) &&
+    isInCycleTimeRange()) { // Wake up from stand by
+    reset();
   }
+}
+
+boolean isInCycleTimeRange() {
+  return (
+           //  weekday() != SATURDAY &&
+           //  weekday() != SUNDAY &&
+           (hour() < configValues.standByStartHour) &&
+           (hour() >= configValues.standByEndHour)
+         );
 }
 
 void syncUTC() {
 
   Serial.println("Synchronizing with second 0 from UTC...");
-  GPS.read();
   while (true) {
     if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds == 0 && GPS.milliseconds == 0)
       break;
-    GPS.read();
   }
 
   lastTimeSync = millis();
   Serial.println("Synchronized successfully.");
 }
 
-void loadInitialValues(){
-  UTCoffset = -3;
-  timeLapseHigh = 4;
-  timeLapseDown = 1;
+void loadInitialValues() {
 
-  syncFreqMillis = 295000; // 290000 - 4' 55''
+  EEPROM.get(0, configValues);
 
-  standByStartHour = 19;
-  standByStartMinute = 0;
-  standByEndHour = 7;
-  standByEndMinute = 0;
+  Serial.println("InitialValues: --------------------->>>");
 
+  Serial.print("initValuesConfigured: "); Serial.println(configValues.initValuesConfigured);
+  Serial.print("UTCoffset: "); Serial.println(configValues.UTCoffset);
+  Serial.print("timeLapseHigh: "); Serial.print(configValues.timeLapseHigh);
+  Serial.print(" - timeLapseDown: "); Serial.print(configValues.timeLapseDown);
+  Serial.print(" - syncFreqMillis: "); Serial.println(configValues.syncFreqMillis);
+  Serial.print("standByStartHour: "); Serial.print(configValues.standByStartHour);
+  Serial.print(" - standByEndHour: "); Serial.println(configValues.standByEndHour);
+  //Serial.print("standByEndMinute: ");Serial.println(configValues.standByEndMinute);
+
+  if (configValues.initValuesConfigured != 'T') {
+    Serial.println("Initial values has not be configured. Configuring default values...");
+    configValues.initValuesConfigured = 'T';
+    configValues.UTCoffset = -3;
+    configValues.timeLapseHigh = 4;
+    configValues.timeLapseDown = 1;
+    configValues.syncFreqMillis = 295000; // 4' 55''
+    configValues.standByStartHour = 19;
+    configValues.standByEndHour = 7;
+    EEPROM.put(0, configValues);
+    //configValues.standByEndMinute =;
+    Serial.println("Default values configured. Reset in 5 seconds...");
+    delay(5000);
+    reset();
+  }
+
+  Serial.println("InitialValues: ---------------------<<<");
 }
 
 
