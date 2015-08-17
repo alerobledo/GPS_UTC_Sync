@@ -29,11 +29,26 @@ void readComandRequest() {
     if (commandToExecute == "RESET") {
       reset();
     }
-    if (commandToExecute == "START-CYCLE") {
+    else if (commandToExecute == "FORCE-CYCLE") {
       checkStatusEnabled = false; // in order to not to change to "stand by" mode
       currentMode = CYCLING_MODE;
       syncUTC();
       setCycleInterrupt();
+    }
+    else if (commandToExecute == "STAND-BY-RANGE"){
+      String p1 = params[0];
+      String p2 = params[1];
+      configValues.standByStartHour = p1.toInt();
+      configValues.standByEndHour = p2.toInt();
+      EEPROM.put(0, configValues);
+    }
+    else if (commandToExecute == "CYCLE"){
+      String p1 = params[0];
+      String p2 = params[1];
+      configValues.timeLapseHigh = p1.toInt();
+      configValues.timeLapseDown = p2.toInt();
+      EEPROM.put(0, configValues);
+      reset();
     }
   }
 }

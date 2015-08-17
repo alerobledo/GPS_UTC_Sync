@@ -35,7 +35,6 @@ ConfigValues configValues;
 // *** Program variables ***
 uint8_t currentMode = CYCLING_MODE;
 uint32_t lastTimeSync = 0;
-const boolean pulseGreaterThanSecond = true;
 boolean checkStatusEnabled = true; // used when force cycle during "stand by" mode period
 
 
@@ -85,7 +84,7 @@ void loop()
 
   // TODO: modify it in order to use a time interrupt
   if ( currentMode == CYCLING_MODE &&
-       pulseGreaterThanSecond &&
+       configValues.timeLapseHigh<100 && // timeLapseHigh is defined in seconds
        (millis() - lastTimeSync) >= configValues.syncFreqMillis)
   {
     detachInterrupt(1);
@@ -140,14 +139,14 @@ void  setCycleInterrupt() {
   secondsAcumDown = 0;
   validateStatusHigh = true;
 
-  if (pulseGreaterThanSecond) {
+  if (configValues.timeLapseHigh<100) { // timeLapseHigh is defined in seconds
     attachInterrupt(1, sendPulseGreaterThanSecond, RISING);
     /*   Param 1 means the interrupts will check the PIN 3 (in Arduino UNO)
          RISING means interrupt will be thrown when PIN value change from LOW to HIGH.
          PIN 3 will be connected to PPS (GPS PIN module).
          It means interrupt wil be thrown at every second start.
     */
-  } else {
+  } else {// timeLapseHigh is defined in milliseconds
     attachInterrupt(1, sendPulseLessThanSecond, RISING);
   }
 }
@@ -170,12 +169,18 @@ void checkStatus() {
 }
 
 boolean isInCycleTimeRange() {
-  return (
-           //  weekday() != SATURDAY &&
+             //  weekday() != SATURDAY &&
            //  weekday() != SUNDAY &&
+ 
+  if (configValues.standByStartHour>configValues.standByEndHour){ //stand-by ends on next day
+        return
            (hour() < configValues.standByStartHour) &&
-           (hour() >= configValues.standByEndHour)
-         );
+           (hour() >= configValues.standByEndHour);
+  }else{      //stand-by ends on the same day
+        return !(
+         (hour() >= configValues.standByStartHour) &&
+         (hour() <= configValues.standByEndHour));
+  }
 }
 
 void syncUTC() {
