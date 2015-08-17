@@ -10,6 +10,8 @@ Adafruit_GPS GPS(&mySerial);
 #define GPSECHO  false // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
 
 #define PIN_CYCLE 4
+#define PIN_ON 6 // LED 'on'
+#define PIN_SYNC_UTC 7 // LED showing the sync
 
 #define CYCLING_MODE  1
 #define STAND_BY_MODE 2
@@ -40,9 +42,6 @@ boolean checkStatusEnabled = true; // used when force cycle during "stand by" mo
 
 
 // *** Program constants ***
-//const int unsigned powerOnPin = 5; // LED 'on'
-const int unsigned waitingGPSPin = 7; //LED 'waiting'
-const int unsigned SyncUTCPin = 8; // LED showing the sync
 
 const uint8_t SATURDAY = 7;
 const uint8_t SUNDAY = 1;
@@ -62,11 +61,10 @@ void setup()
   loadInitialValues();
 
   initGPS();
-  //digitalWrite(powerOnPin, HIGH);
+  digitalWrite(PIN_ON, HIGH);
 
   Serial.println("Waiting for GPS Fix, pleas wait...");
   waitGPSFix();
-  digitalWrite(waitingGPSPin, HIGH);
 
   syncUTC();
 
@@ -185,6 +183,7 @@ boolean isInCycleTimeRange() {
 
 void syncUTC() {
 
+  digitalWrite(PIN_SYNC_UTC, HIGH);
   Serial.println("Synchronizing with second 0 from UTC...");
   while (true) {
     if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds == 0 && GPS.milliseconds == 0)
@@ -193,6 +192,7 @@ void syncUTC() {
 
   lastTimeSync = millis();
   Serial.println("Synchronized successfully.");
+  digitalWrite(PIN_SYNC_UTC, LOW);
 }
 
 void loadInitialValues() {

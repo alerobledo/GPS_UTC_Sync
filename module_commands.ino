@@ -27,6 +27,11 @@ void readComandRequest() {
     }
 
     if (commandToExecute == "RESET") {
+      detachInterrupt(1);
+      digitalWrite(PIN_ON, LOW);
+      digitalWrite(PIN_SYNC_UTC, LOW);
+      digitalWrite(PIN_CYCLE, LOW);
+      delay(5000);
       reset();
     }
     else if (commandToExecute == "FORCE-CYCLE") {
