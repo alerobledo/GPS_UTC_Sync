@@ -99,8 +99,6 @@ void loop()
 
 void sendPulseGreaterThanSecond() {
 
-  Serial.println(digitalRead(PIN_CYCLE), DEC);
-
   if (validateStatusHigh) {
     if (secondsAcumHigh < configValues.timeLapseHigh) {
       digitalWrite(PIN_CYCLE, HIGH);
@@ -125,10 +123,10 @@ void sendPulseGreaterThanSecond() {
 void sendPulseLessThanSecond() {
   Serial.println(1, DEC);
   digitalWrite(PIN_CYCLE, HIGH);
-  delay(200);
+  delay(configValues.timeLapseHigh);
   Serial.println(0, DEC);
   digitalWrite(PIN_CYCLE, LOW);
-  delay(800);
+  delay(configValues.timeLapseDown);
 
 }
 
@@ -201,15 +199,8 @@ void loadInitialValues() {
 
   Serial.println("InitialValues: --------------------->>>");
 
-  Serial.print("initValuesConfigured: "); Serial.println(configValues.initValuesConfigured);
-  Serial.print("UTCoffset: "); Serial.println(configValues.UTCoffset);
-  Serial.print("timeLapseHigh: "); Serial.print(configValues.timeLapseHigh);
-  Serial.print(" - timeLapseDown: "); Serial.print(configValues.timeLapseDown);
-  Serial.print(" - syncFreqMillis: "); Serial.println(configValues.syncFreqMillis);
-  Serial.print("standByStartHour: "); Serial.print(configValues.standByStartHour);
-  Serial.print(" - standByEndHour: "); Serial.println(configValues.standByEndHour);
-  //Serial.print("standByEndMinute: ");Serial.println(configValues.standByEndMinute);
-
+  printStatus();
+  
   if (configValues.initValuesConfigured != 'T') {
     Serial.println("Initial values has not be configured. Configuring default values...");
     configValues.initValuesConfigured = 'T';

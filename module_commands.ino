@@ -1,6 +1,8 @@
 void readComandRequest() {
   if (Serial.available() > 0)
   {
+    detachInterrupt(1); //in order to read the command, which its suppossed to have more priority.
+    
     char input[INPUT_SIZE + 1];
     byte size = Serial.readBytes(input, INPUT_SIZE); // read input
     input[size] = 0;
@@ -26,6 +28,8 @@ void readComandRequest() {
       Serial.print("param 2:"); Serial.println(params[1]);
     }
 
+    Serial.print("command:"); Serial.println(commandToExecute);
+    
     if (commandToExecute == "RESET") {
       detachInterrupt(1);
       digitalWrite(PIN_ON, LOW);
@@ -37,8 +41,6 @@ void readComandRequest() {
     else if (commandToExecute == "FORCE-CYCLE") {
       checkStatusEnabled = false; // in order to not to change to "stand by" mode
       currentMode = CYCLING_MODE;
-      syncUTC();
-      setCycleInterrupt();
     }
     else if (commandToExecute == "STAND-BY-RANGE"){
       String p1 = params[0];
@@ -55,11 +57,35 @@ void readComandRequest() {
       EEPROM.put(0, configValues);
       reset();
     }
+    else if (commandToExecute == "STATUS") {
+      printStatus();
+    }
+
+    //re enable cycle
+    syncUTC();
+    setCycleInterrupt();
   }
 }
 
 
 void reset() {
   wdt_enable(WDTO_15MS);
+}
+
+void printStatus(){
+  Serial.println("Current Status: --------------------->>>");
+
+  Serial.print(" initValuesConfigured: "); Serial.println(configValues.initValuesConfigured);
+  Serial.print(" UTCoffset: "); Serial.println(configValues.UTCoffset);
+  Serial.print(" timeLapseHigh: "); Serial.print(configValues.timeLapseHigh);
+  Serial.print(" - timeLapseDown: "); Serial.print(configValues.timeLapseDown);
+  Serial.print(" - syncFreqMillis: "); Serial.println(configValues.syncFreqMillis);
+  Serial.print(" standByStartHour: "); Serial.print(configValues.standByStartHour);
+  Serial.print(" - standByEndHour: "); Serial.println(configValues.standByEndHour);
+
+  Serial.print(" current time: "); printCurrentTime();
+  Serial.print(" isInCycleTimeRange: "); Serial.println(isInCycleTimeRange());
+  Serial.print(" current mode: "); Serial.println(currentMode);
+  Serial.print(" checkStatusEnabled: "); Serial.println(checkStatusEnabled);
 }
 
