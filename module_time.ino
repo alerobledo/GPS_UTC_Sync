@@ -1,12 +1,3 @@
-
-
-void setInitialTime() {
-  setTime(GPS.hour+configValues.UTCoffset, GPS.minute, GPS.seconds, GPS.day, GPS.month, GPS.year);
-  Serial.print("Local date/time set to:");
-  printCurrentTime();
- 
-}
-
 void printCurrentTime(){
   Serial.print(weekday()); Serial.print(' ');
   Serial.print(day()); Serial.print('/');

@@ -4,7 +4,7 @@
 #include <avr/wdt.h>
 #include <EEPROM.h>
 
-SoftwareSerial mySerial(5, 2);
+SoftwareSerial mySerial(5, 9);
 Adafruit_GPS GPS(&mySerial);
 
 #define GPSECHO  false // Set GPSECHO to 'false' to turn off echoing the GPS data to the Serial console
@@ -36,7 +36,6 @@ ConfigValues configValues;
 
 // *** Program variables ***
 uint8_t currentMode = CYCLING_MODE;
-uint32_t lastTimeSync = 0;
 boolean checkStatusEnabled = true; // used when force cycle during "stand by" mode period
 
 
@@ -46,17 +45,18 @@ boolean checkStatusEnabled = true; // used when force cycle during "stand by" mo
 const uint8_t SATURDAY = 7;
 const uint8_t SUNDAY = 1;
 
-uint8_t volatile secondsAcumHigh = 0;
-uint8_t volatile secondsAcumDown = 0;
+uint8_t volatile secondsAcum = 0;
 boolean volatile validateStatusHigh = true;
 
+int volatile millisecondsAcum = 0;
+uint8_t volatile pulseLessThanSecond=0;
 
 
 void setup()
 {
-
+  pinMode(PIN_CYCLE, OUTPUT);
   Serial.begin(115200);
-  Serial.println("UTC sync POC (by aler) v1.1.0");
+  Serial.println("UTC sync POC (by aler) v0.1");
 
   loadInitialValues();
 
@@ -68,8 +68,6 @@ void setup()
 
   syncUTC();
 
-  setInitialTime();
-
   setCycleInterrupt();
   Serial.println("End Setup.");
 }
@@ -80,17 +78,6 @@ void loop()
   if (checkStatusEnabled)
     checkStatus();
 
-  // TODO: modify it in order to use a time interrupt
-  if ( currentMode == CYCLING_MODE &&
-       configValues.timeLapseHigh<100 && // timeLapseHigh is defined in seconds
-       (millis() - lastTimeSync) >= configValues.syncFreqMillis)
-  {
-    detachInterrupt(1);
-    digitalWrite(PIN_CYCLE, LOW);
-    syncUTC();
-    setCycleInterrupt();
-  }
-
   readComandRequest();
 
 }
@@ -100,49 +87,39 @@ void loop()
 void sendPulseGreaterThanSecond() {
 
   if (validateStatusHigh) {
-    if (secondsAcumHigh < configValues.timeLapseHigh) {
+    if (secondsAcum < configValues.timeLapseHigh) {
       digitalWrite(PIN_CYCLE, HIGH);
-      secondsAcumHigh++;
+      secondsAcum++;
     } else {
       digitalWrite(PIN_CYCLE, LOW);
       validateStatusHigh = false;
-      secondsAcumHigh = 0;
-      secondsAcumDown++;
+      secondsAcum = 0;
     }
-  } else if (secondsAcumDown < configValues.timeLapseDown) {
-    secondsAcumDown++;
+  } else if (secondsAcum < configValues.timeLapseDown) {
+    secondsAcum++;
   } else {
     digitalWrite(PIN_CYCLE, HIGH);
-    secondsAcumHigh++;
-    secondsAcumDown = 0;
+    secondsAcum++;
     validateStatusHigh = true;
   }
 }
 
-
 void sendPulseLessThanSecond() {
-  Serial.println(1, DEC);
   digitalWrite(PIN_CYCLE, HIGH);
-  delay(configValues.timeLapseHigh);
-  Serial.println(0, DEC);
-  digitalWrite(PIN_CYCLE, LOW);
-  delay(configValues.timeLapseDown);
-
+  millisecondsAcum = 0;
 }
 
+
+
 void  setCycleInterrupt() {
-  secondsAcumHigh = 0;
-  secondsAcumDown = 0;
-  validateStatusHigh = true;
 
   if (configValues.timeLapseHigh<100) { // timeLapseHigh is defined in seconds
+    secondsAcum = 0;
+    validateStatusHigh = true;
     attachInterrupt(1, sendPulseGreaterThanSecond, RISING);
-    /*   Param 1 means the interrupts will check the PIN 3 (in Arduino UNO)
-         RISING means interrupt will be thrown when PIN value change from LOW to HIGH.
-         PIN 3 will be connected to PPS (GPS PIN module).
-         It means interrupt wil be thrown at every second start.
-    */
+        
   } else {// timeLapseHigh is defined in milliseconds
+    pulseLessThanSecond = 1;    
     attachInterrupt(1, sendPulseLessThanSecond, RISING);
   }
 }
@@ -184,11 +161,13 @@ void syncUTC() {
   digitalWrite(PIN_SYNC_UTC, HIGH);
   Serial.println("Synchronizing with second 0 from UTC...");
   while (true) {
-    if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds == 0 && GPS.milliseconds == 0)
+    if (GPS.newNMEAreceived()      && GPS.parse(GPS.lastNMEA())            && GPS.seconds == 0 && GPS.milliseconds == 0){
+      setTime(GPS.hour, GPS.minute, GPS.seconds, GPS.day, GPS.month, GPS.year);
+      adjustTime(configValues.UTCoffset * SECS_PER_HOUR);      
       break;
+    }      
   }
 
-  lastTimeSync = millis();
   Serial.println("Synchronized successfully.");
   digitalWrite(PIN_SYNC_UTC, LOW);
 }

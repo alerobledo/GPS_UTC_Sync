@@ -62,7 +62,6 @@ void readComandRequest() {
     }
 
     //re enable cycle
-    syncUTC();
     setCycleInterrupt();
   }
 }
